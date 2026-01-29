@@ -1,14 +1,15 @@
 import os
 import time
+import argparse
 import google.generativeai as genai
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# إعدادات الواجهة
+# إعداد الواجهة
 console = Console()
 
-# إعداد مفتاح API
+# إعداد المفتاح - تأكد من تحديثه إذا قمت بتغييره
 genai.configure(api_key="AIzaSyC3Nyp_aH0DfQAoYqCdbvA5mhBVlTt1wNs")
 
 def banner():
@@ -21,68 +22,78 @@ def banner():
     ██████  ██   ██ ██   ██  ██████   ██████  ██   ████ 
     """
     console.print(f"[bold red]{banner_text}[/bold red]")
-    console.print("[bold yellow]The Revolutionary AI Search Tool (English Only)[/bold yellow]")
-    console.print(Panel("[bold cyan]Developer: toolss0824828402\nGitHub: https://github.com/toolss0824828402[/bold cyan]"))
+    console.print(Panel("[bold cyan]COMMANDER: toolss0824828402 | SYSTEM: DRAGON AI[/bold cyan]", expand=False))
 
-def get_ai_response(user_query, persona):
-    # نظام الأنماط (Personas)
-    personas_config = {
-        "expert": "You are a senior technical expert. Provide deep, detailed, and professional technical answers in English only.",
-        "simple": "Explain concepts like I am 5 years old (ELI5). Use simple analogies and easy English only.",
-        "code": "Focus strictly on providing clean, optimized, and documented code snippets in English only."
+def get_ai_response(prompt, persona="expert"):
+    configs = {
+        "expert": "Professional technical expert. Deep English analysis.",
+        "simple": "Explain like I'm five (ELI5). Simple English.",
+        "code": "Coding assistant. Provide clean code snippets in English.",
+        "readme": "Documentation expert. Write a professional GitHub README.md in English."
     }
     
+    # إصلاح مشكلة الموديل عبر استخدام التسمية المباشرة
     model = genai.GenerativeModel('gemini-1.5-flash')
     
-    # دمج التعليمات لضمان الإنجليزية فقط
-    full_prompt = f"Instruction: {personas_config[persona]}. User Query: {user_query}"
+    system_instruction = f"Instruction: {configs.get(persona)}. ALWAYS respond in English only."
     
     try:
-        response = model.generate_content(full_prompt)
+        response = model.generate_content(f"{system_instruction}\n\nUser: {prompt}")
         return response.text
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error occurred: {str(e)}"
 
-def save_log(query, response):
-    if not os.path.exists("logs"):
-        os.makedirs("logs")
-    filename = f"logs/search_{int(time.time())}.md"
+def read_local_file(filepath):
+    if os.path.exists(filepath):
+        with open(filepath, 'r', encoding='utf-8') as f:
+            return f.read()
+    return None
+
+def save_output(content, prefix="search"):
+    if not os.path.exists("outputs"):
+        os.makedirs("outputs")
+    filename = f"outputs/{prefix}_{int(time.time())}.md"
     with open(filename, "w", encoding="utf-8") as f:
-        f.write(f"# Query: {query}\n\n## Response:\n{response}")
+        f.write(content)
     return filename
 
 def main():
     banner()
-    console.print("\n[bold white]Select AI Persona:[/bold white]")
-    console.print("1. [bold red]--expert[/bold red] (Deep Technical)")
-    console.print("2. [bold green]--simple[/bold green] (Easy Explanation)")
-    console.print("3. [bold blue]--code[/bold blue] (Coding Focus)")
     
-    choice = input("\nSelect (1/2/3): ")
-    persona_map = {"1": "expert", "2": "simple", "3": "code"}
-    selected_persona = persona_map.get(choice, "expert")
+    console.print("\n[bold white]Choose Mode:[/bold white]")
+    console.print("1. [red]Expert Search[/red] | 2. [green]Simple Explain[/green] | 3. [blue]Code Assistant[/blue]")
+    console.print("4. [magenta]Analyze Local File[/magenta] | 5. [yellow]Generate README[/yellow]")
     
-    query = input(f"\n[?] Enter your search query: ")
+    mode = input("\nSelect (1-5): ")
     
-    # مؤشر الانتظار (Loading Spinner)
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        progress.add_task(description="AI is thinking...", total=None)
+    persona_map = {"1": "expert", "2": "simple", "3": "code", "5": "readme"}
+    
+    if mode == "4":
+        path = input("[?] Enter file path (e.g., dragon.py): ")
+        file_content = read_local_file(path)
+        if file_content:
+            query = f"Analyze this code for errors and explain it:\n\n{file_content}"
+            selected_persona = "expert"
+        else:
+            console.print("[red]File not found![/red]")
+            return
+    elif mode in persona_map:
+        selected_persona = persona_map[mode]
+        query = input(f"\n[?] Enter your prompt (English): ")
+    else:
+        return
+
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
+        progress.add_task(description="Dragon is processing...", total=None)
         answer = get_ai_response(query, selected_persona)
-    
-    # عرض الإجابة بتنسيق ملون (Rich Text)
+
     console.print("\n")
-    console.print(Panel(answer, title="[bold green]AI Response (English)[/bold green]", border_style="blue"))
+    console.print(Panel(answer, title="[bold green]DRAGON AI RESPONSE[/bold green]", border_style="red"))
     
-    # حفظ السجل تلقائياً
-    log_file = save_log(query, answer)
-    console.print(f"\n[dim white]✔ Response saved to: {log_file}[/dim white]")
-    
-    # خيار النسخ السريع
-    console.print("[bold yellow]Tip: Long press to copy text in Termux![/bold yellow]")
+    # الحفظ التلقائي
+    save_type = "readme" if mode == "5" else "log"
+    saved_path = save_output(answer, prefix=save_type)
+    console.print(f"\n[dim]✔ File saved to: {saved_path}[/dim]")
 
 if __name__ == "__main__":
     main()
